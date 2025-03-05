@@ -12,10 +12,10 @@ class CXMLReader{
         
     public:
         CXMLReader(std::shared_ptr< CDataSource > src);
-        ~CXMLReader();
-        
-        bool End() const;
-        bool ReadEntity(SXMLEntity &entity, bool skipcdata = false);
+        virtual ~CXMLReader();
+    
+        virtual bool End() const;
+        virtual bool ReadEntity(SXMLEntity &entity, bool skipcdata = false);
 };
 
 #endif

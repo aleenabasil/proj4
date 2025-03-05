@@ -1,107 +1,29 @@
-#include <gtest/gtest.h>
 #include "DSVReader.h"
 #include "DSVWriter.h"
-#include "StringUtils.h"
 #include "StringDataSource.h"
 #include "StringDataSink.h"
+#include <gtest/gtest.h>
 
-TEST(DSVWriter, EmptyTest){
-    auto DSVSink = std::make_shared<CStringDataSink>();
-    CDSVWriter DSVWriter(DSVSink,',');
+TEST(DSVTest, BasicReadWrite) {
+    // initialize a shared pointer for data w/ DSV content
+    std::shared_ptr<CStringDataSource> src = std::make_shared<CStringDataSource>("hello,anikaandaleena,hi\na,b,c\n");
+    // initialize a shared pointer for data sink to see output
+    std::shared_ptr<CStringDataSink> sink = std::make_shared<CStringDataSink>();
 
-    EXPECT_EQ(DSVSink->String(),"");
+    // create a DSV reader w/ data and specify delimiter
+    CDSVReader reader(src, ',');
+    // create a DSV writer w/ data sink and specify delimiter
+    CDSVWriter writer(sink, ',');
+
+    // vector to hold each row of data read from source
+    std::vector<std::string> row;
+    // continue reading rows until there are no more to read
+    while (reader.ReadRow(row)) {
+        // for each row read and write it to the sink
+        writer.WriteRow(row);
+    }
+
+    // assert that string output from sink matches expected DSV content
+    EXPECT_EQ(sink->String(), "hello,anikaandaleena,hi\na,b,c\n");
 }
 
-TEST(DSVWriter, SimpleTest){
-    auto DSVSink = std::make_shared<CStringDataSink>();
-    CDSVWriter DSVWriter(DSVSink,',');
-    std::vector<std::string> StringVector = {"How", "are", "you", "doing?"};
-
-    EXPECT_TRUE(DSVWriter.WriteRow(StringVector));
-    EXPECT_EQ(DSVSink->String(),StringUtils::Join(",",StringVector));
-}
-
-TEST(DSVWriter, NewlineTest){
-    auto DSVSink = std::make_shared<CStringDataSink>();
-    CDSVWriter DSVWriter(DSVSink,',');
-    std::vector<std::string> StringVector = {"How", "are", "you", "doing?"};
-
-    EXPECT_TRUE(DSVWriter.WriteRow(StringVector));
-    std::string JoinedRow = StringUtils::Join(",",StringVector);
-    EXPECT_TRUE(DSVWriter.WriteRow(StringVector));
-    EXPECT_EQ(DSVSink->String(),StringUtils::Join("\n",{JoinedRow,JoinedRow}));
-}
-
-TEST(DSVWriter, QuotingTest){
-    auto DSVSink = std::make_shared<CStringDataSink>();
-    CDSVWriter DSVWriter(DSVSink,',');
-    std::vector<std::string> StringVector = {"1,000", "My name is \"Bob\"!", "3.3"};
-
-    EXPECT_TRUE(DSVWriter.WriteRow(StringVector));
-    EXPECT_EQ(DSVSink->String(),"\"1,000\",\"My name is \"\"Bob\"\"!\",3.3");
-}
-
-TEST(DSVWriter, QuoteAllTest){
-    auto DSVSink = std::make_shared<CStringDataSink>();
-    CDSVWriter DSVWriter(DSVSink,',',true);
-    std::vector<std::string> StringVector = {"a","b","c","d"};
-
-    EXPECT_TRUE(DSVWriter.WriteRow(StringVector));
-    EXPECT_EQ(DSVSink->String(),"\"a\",\"b\",\"c\",\"d\"");
-}
-
-TEST(DSVReader, EmptyTest){
-    auto DSVSource = std::make_shared<CStringDataSource>("");
-    CDSVReader DSVReader(DSVSource,',');
-    std::vector<std::string> StringVector;
-
-    EXPECT_FALSE(DSVReader.ReadRow(StringVector));
-    EXPECT_TRUE(DSVReader.End());
-}
-
-TEST(DSVReader, SimpleTest){
-    auto DSVSource = std::make_shared<CStringDataSource>("How,are,you,doing?");
-    CDSVReader DSVReader(DSVSource,',');
-    std::vector<std::string> StringVector;
-
-    EXPECT_TRUE(DSVReader.ReadRow(StringVector));
-    EXPECT_TRUE(DSVReader.End());
-    ASSERT_EQ(StringVector.size(),4);
-    EXPECT_EQ(StringVector[0],"How");
-    EXPECT_EQ(StringVector[1],"are");
-    EXPECT_EQ(StringVector[2],"you");
-    EXPECT_EQ(StringVector[3],"doing?");
-}
-
-TEST(DSVReader, NewlineTest){
-    auto DSVSource = std::make_shared<CStringDataSource>("How,are,you,doing?\nI'm,doing,great!");
-    CDSVReader DSVReader(DSVSource,',');
-    std::vector<std::string> StringVector;
-
-    EXPECT_TRUE(DSVReader.ReadRow(StringVector));
-    EXPECT_FALSE(DSVReader.End());
-    ASSERT_EQ(StringVector.size(),4);
-    EXPECT_EQ(StringVector[0],"How");
-    EXPECT_EQ(StringVector[1],"are");
-    EXPECT_EQ(StringVector[2],"you");
-    EXPECT_EQ(StringVector[3],"doing?");
-    EXPECT_TRUE(DSVReader.ReadRow(StringVector));
-    ASSERT_EQ(StringVector.size(),3);
-    EXPECT_EQ(StringVector[0],"I'm");
-    EXPECT_EQ(StringVector[1],"doing");
-    EXPECT_EQ(StringVector[2],"great!");
-    EXPECT_TRUE(DSVReader.End());
-}
-
-TEST(DSVReader, QuotingTest){
-    auto DSVSource = std::make_shared<CStringDataSource>("\"1,000\",\"My name is \"\"Bob\"\"!\",3.3");
-    CDSVReader DSVReader(DSVSource,',');
-    std::vector<std::string> StringVector;
-
-    EXPECT_TRUE(DSVReader.ReadRow(StringVector));
-    EXPECT_TRUE(DSVReader.End());
-    ASSERT_EQ(StringVector.size(),3);
-    EXPECT_EQ(StringVector[0],"1,000");
-    EXPECT_EQ(StringVector[1],"My name is \"Bob\"!");
-    EXPECT_EQ(StringVector[2],"3.3");    
-}

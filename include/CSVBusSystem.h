@@ -7,6 +7,8 @@
 class CCSVBusSystem : public CBusSystem{
     private:
         struct SImplementation;
+        struct SStop;
+        struct SRoute;
         std::unique_ptr< SImplementation > DImplementation;
     public:
         CCSVBusSystem(std::shared_ptr< CDSVReader > stopsrc, std::shared_ptr< CDSVReader > routesrc);

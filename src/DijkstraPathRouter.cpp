@@ -30,3 +30,11 @@ std::any GetVertexTag(TVertexID id) const noexcept;
 // will return false, otherwise it returns true.
 bool AddEdge(TVertexID src, TVertexID dest, double weight, bool bidir =
 false) noexcept;
+
+// Allows the path router to do any desired precomputation up to the deadline
+bool Precompute(std::chrono::steady_clock::time_point deadline) noexcept;
+
+// Returns the path distance of the path from src to dest, and fills out path
+// with vertices. If no path exists NoPathExists is returned.
+double FindShortestPath(TVertexID src, TVertexID dest, std::vector<TVertexID>
+&path) noexcept;

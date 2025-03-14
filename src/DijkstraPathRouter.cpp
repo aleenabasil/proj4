@@ -144,8 +144,7 @@ std::any CDijkstraPathRouter::GetVertexTag(TVertexID id) const noexcept{
 // bidir is set to true an additional edge between dest and src is added. If
 // src or dest nodes do not exist, or if the weight is negative the AddEdge
 // will return false, otherwise it returns true.
-bool CDijkstraPathRouter::AddEdge(TVertexID src, TVertexID dest, double weight, bool bidir =
-false) noexcept{
+bool CDijkstraPathRouter::AddEdge(TVertexID src, TVertexID dest, double weight, bool bidir) noexcept{
     return DImplementation->AddEdge(src,dest,weight,bidir);
 }
 

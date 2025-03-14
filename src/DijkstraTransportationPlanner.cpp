@@ -10,6 +10,7 @@
 #include "StreetMap.h" 
 #include "GeographicUtils.h"
 #include "BusSystem.h"
+#include <algorithm>
 
 struct CDijkstraTransportationPlanner::SImplementation{
     std::shared_ptr<SConfiguration> DConfig;

@@ -14,12 +14,78 @@
 
 struct CDijkstraTransportationPlanner::SImplementation{
     std::shared_ptr<SConfiguration> DConfig;
+    
+    // Map of node ID to adjacency list for distance-based routing
+    std::unordered_map<TNodeID, std::vector<std::pair<TNodeID, double>>> DDistanceGraph;
+    
+    // Map of node ID to adjacency list for time-based routing with transportation mode
+    std::unordered_map<TNodeID, std::vector<std::tuple<TNodeID, double, ETransportationMode>>> DTimeGraph;
 
     SImplementation(std::shared_ptr<SConfiguration> config)
         : DConfig(config) {
+        BuildGraphs();
     }
 
     ~SImplementation(){
+    }
+    
+    void BuildGraphs() {
+        auto streetMap = DConfig->StreetMap();
+        auto busSystem = DConfig->BusSystem();
+        if (!streetMap) return;
+        
+        // Build distance graph from street map
+        for (size_t i = 0; i < streetMap->WayCount(); ++i) {
+            auto way = streetMap->WayByIndex(i);
+            if (!way) continue;
+            
+            for (size_t j = 0; j < way->NodeCount() - 1; ++j) {
+                TNodeID src = way->GetNodeID(j);
+                TNodeID dest = way->GetNodeID(j + 1);
+                
+                auto srcNode = streetMap->NodeByID(src);
+                auto destNode = streetMap->NodeByID(dest);
+                if (!srcNode || !destNode) continue;
+                
+                double distance = SGeographicUtils::HaversineDistanceInMiles(
+                    srcNode->Location(), destNode->Location()
+                );
+                
+                // Add bidirectional edge
+                DDistanceGraph[src].push_back({dest, distance});
+                DDistanceGraph[dest].push_back({src, distance});
+                
+                // Add walk and bike edges to time graph
+                double walkTime = distance / DConfig->WalkSpeed();
+                DTimeGraph[src].push_back({dest, walkTime, ETransportationMode::Walk});
+                DTimeGraph[dest].push_back({src, walkTime, ETransportationMode::Walk});
+                
+                double bikeTime = distance / DConfig->BikeSpeed();
+                DTimeGraph[src].push_back({dest, bikeTime, ETransportationMode::Bike});
+                DTimeGraph[dest].push_back({src, bikeTime, ETransportationMode::Bike});
+            }
+        }
+        
+        // Add bus edges to time graph
+        if (busSystem) {
+            for (size_t i = 0; i < busSystem->RouteCount(); ++i) {
+                auto route = busSystem->RouteByIndex(i);
+                if (!route) continue;
+                
+                for (size_t j = 0; j < route->StopCount() - 1; ++j) {
+                    auto srcStop = busSystem->StopByID(route->GetStopID(j));
+                    auto destStop = busSystem->StopByID(route->GetStopID(j + 1));
+                    
+                    if (!srcStop || !destStop) continue;
+                    
+                    TNodeID srcNodeID = srcStop->NodeID();
+                    TNodeID destNodeID = destStop->NodeID();
+                    
+                    // Add bus edge with bus travel time
+                    DTimeGraph[srcNodeID].push_back({destNodeID, DConfig->BusStopTime(), ETransportationMode::Bus});
+                }
+            }
+        }
     }
 
     std::size_t NodeCount() const noexcept {
@@ -31,60 +97,58 @@ struct CDijkstraTransportationPlanner::SImplementation{
     }
         
     double FindShortestPath(TNodeID src, TNodeID dest, std::vector<TNodeID> &path) {
+        path.clear();
         auto streetMap = DConfig->StreetMap();
         if (!streetMap) return -1.0;
+        
+        // Check if source and destination exist
+        if (DDistanceGraph.find(src) == DDistanceGraph.end() || 
+            DDistanceGraph.find(dest) == DDistanceGraph.end()) {
+            return -1.0;
+        }
+        
+        // Handle trivial case
+        if (src == dest) {
+            path.push_back(src);
+            return 0.0;
+        }
 
+        // Standard Dijkstra's algorithm
         std::unordered_map<TNodeID, double> distances;
         std::unordered_map<TNodeID, TNodeID> parents;
         std::priority_queue<std::pair<double, TNodeID>, std::vector<std::pair<double, TNodeID>>, std::greater<>> pq;
 
-        // Initialize structures
-        for (size_t i = 0; i < streetMap->NodeCount(); ++i) {
-            TNodeID nodeID = streetMap->NodeByIndex(i)->ID();
-
-            // Initialize the nodes to inifinity
+        // Initialize distances
+        for (const auto& [nodeID, _] : DDistanceGraph) {
             distances[nodeID] = std::numeric_limits<double>::max();
         }
+        distances[src] = 0.0;
+        pq.push({0.0, src});
 
-        // Initialize starting point distance
-        distances[src] = 0;
-        pq.push({0, src});
-
-        // Calculate distances to all nodes
         while (!pq.empty()) {
-            // Extract node with shortest distance
-            auto [cost, node] = pq.top();
+            auto [dist, node] = pq.top();
             pq.pop();
-
+            
             if (node == dest) break;
-
-            auto currentNode = streetMap->NodeByID(node);
-            if (!currentNode) continue;
-
-            for (size_t i = 0; i < streetMap->WayCount(); ++i) {
-                auto way = streetMap->WayByIndex(i);
-                if (!way) continue;
-
-                for (size_t j = 0; j < way->NodeCount() - 1; ++j) {
-                    TNodeID u = way->GetNodeID(j);
-                    TNodeID v = way->GetNodeID(j + 1);
-                    double weight = SGeographicUtils::HaversineDistanceInMiles(
-                        streetMap->NodeByID(u)->Location(), streetMap->NodeByID(v)->Location()
-                    );
-
-                    if (distances[u] + weight < distances[v]) {
-                        distances[v] = distances[u] + weight;
-                        parents[v] = u;
-                        pq.push({distances[v], v});
-                    }
+            
+            if (dist > distances[node]) continue; // Skip if we've found a better path
+            
+            // Check all neighbors
+            for (const auto& [neighbor, weight] : DDistanceGraph[node]) {
+                double newDist = dist + weight;
+                if (newDist < distances[neighbor]) {
+                    distances[neighbor] = newDist;
+                    parents[neighbor] = node;
+                    pq.push({newDist, neighbor});
                 }
             }
         }
-
-        if (distances[dest] == std::numeric_limits<double>::max()) 
-            return -1.0;
-
-        // Reconstruct the path from source to destination
+        
+        if (distances[dest] == std::numeric_limits<double>::max()) {
+            return -1.0; // No path exists
+        }
+        
+        // Reconstruct path
         TNodeID current = dest;
         while (current != src) {
             path.push_back(current);
@@ -92,116 +156,82 @@ struct CDijkstraTransportationPlanner::SImplementation{
         }
         path.push_back(src);
         std::reverse(path.begin(), path.end());
-
+        
         return distances[dest];
     }
 
-    std::shared_ptr<CBusSystem::SStop> FindStopByNodeID(TNodeID nodeID, std::shared_ptr<CBusSystem> busSystem) {
-        for (size_t i = 0; i < busSystem->StopCount(); ++i) {
-            auto stop = busSystem->StopByIndex(i);
-            if (stop && stop->NodeID() == nodeID) {
-                return stop;  // Return the bus stop if found
-            }
-        }
-        return nullptr; // No stop found at this node
-    }
-
     double FindFastestPath(TNodeID src, TNodeID dest, std::vector<TTripStep> &path) {
+        path.clear();
         auto streetMap = DConfig->StreetMap();
-        auto busSystem = DConfig->BusSystem();
-        if (!streetMap || !busSystem) return -1.0;
+        if (!streetMap) return -1.0;
+        
+        // Check if source and destination exist
+        if (DTimeGraph.find(src) == DTimeGraph.end() || 
+            DTimeGraph.find(dest) == DTimeGraph.end()) {
+            return -1.0;
+        }
+        
+        // Handle trivial case
+        if (src == dest) {
+            path.push_back({ETransportationMode::Walk, src});
+            return 0.0;
+        }
 
+        // Modified Dijkstra's algorithm for time-based routing
         std::unordered_map<TNodeID, double> times;
-        std::unordered_map<TNodeID, std::pair<ETransportationMode, TNodeID>> parents;
+        std::unordered_map<TNodeID, std::pair<TNodeID, ETransportationMode>> parents;
         std::priority_queue<std::pair<double, TNodeID>, std::vector<std::pair<double, TNodeID>>, std::greater<>> pq;
 
-        // Initialize structures
-        for (size_t i = 0; i < streetMap->NodeCount(); ++i) {
-            TNodeID nodeID = streetMap->NodeByIndex(i)->ID();
+        // Initialize times
+        for (const auto& [nodeID, _] : DTimeGraph) {
             times[nodeID] = std::numeric_limits<double>::max();
         }
-
-        // Initialize source node to 0
-        times[src] = 0;
-        pq.push({0, src});
+        times[src] = 0.0;
+        pq.push({0.0, src});
 
         while (!pq.empty()) {
-            // Get node with the shortest known travel time
             auto [time, node] = pq.top();
             pq.pop();
-
+            
             if (node == dest) break;
-
-            auto currentNode = streetMap->NodeByID(node);
-            if (!currentNode) continue;
-
-            // Explore different travel modes
-            for (size_t i = 0; i < streetMap->WayCount(); ++i) {
-                auto way = streetMap->WayByIndex(i);
-                if (!way) continue;
-
-                for (size_t j = 0; j < way->NodeCount() - 1; ++j) {
-                    TNodeID u = way->GetNodeID(j);
-                    TNodeID v = way->GetNodeID(j + 1);
-                    double distance = SGeographicUtils::HaversineDistanceInMiles(
-                        streetMap->NodeByID(u)->Location(), streetMap->NodeByID(v)->Location()
-                    );
-
-                    // Walking speed
-                    double walkTime = distance / DConfig->WalkSpeed();
-                    if (times[u] + walkTime < times[v]) {
-                        times[v] = times[u] + walkTime;
-                        parents[v] = {ETransportationMode::Walk, u};
-                        pq.push({times[v], v});
-                    }
-
-                    // Biking speed
-                    double bikeTime = distance / DConfig->BikeSpeed();
-                    if (times[u] + bikeTime < times[v]) {
-                        times[v] = times[u] + bikeTime;
-                        parents[v] = {ETransportationMode::Bike, u};
-                        pq.push({times[v], v});
-                    }
-                }
-            }
-
-            // Check for bus routes
-           auto stop = FindStopByNodeID(node, busSystem);
-            if (stop) {
-                for (size_t i = 0; i < busSystem->RouteCount(); ++i) {
-                    auto route = busSystem->RouteByIndex(i);
-                    if (!route) continue;
-
-                    for (size_t j = 0; j < route->StopCount() - 1; ++j) {
-                        TNodeID busSrc = route->GetStopID(j);
-                        TNodeID busDest = route->GetStopID(j + 1);
-                        double busTime = DConfig->BusStopTime();
-
-                        if (times[busSrc] + busTime < times[busDest]) {
-                            times[busDest] = times[busSrc] + busTime;
-                            parents[busDest] = {ETransportationMode::Bus, busSrc};
-                            pq.push({times[busDest], busDest});
-                        }
-                    }
+            
+            if (time > times[node]) continue; // Skip if we've found a better path
+            
+            // Check all neighbors
+            for (const auto& [neighbor, travelTime, mode] : DTimeGraph[node]) {
+                double newTime = time + travelTime;
+                if (newTime < times[neighbor]) {
+                    times[neighbor] = newTime;
+                    parents[neighbor] = {node, mode};
+                    pq.push({newTime, neighbor});
                 }
             }
         }
-
-        if (times[dest] == std::numeric_limits<double>::max()) return -1.0;
-
-        // Reconstruct path bacm from source to destination
+        
+        if (times[dest] == std::numeric_limits<double>::max()) {
+            return -1.0; // No path exists
+        }
+        
+        // Reconstruct path with transportation modes
+        std::vector<TTripStep> reversePath;
         TNodeID current = dest;
         while (current != src) {
-            path.push_back({parents[current].first, current});
-            current = parents[current].second;
+            auto [prevNode, mode] = parents[current];
+            reversePath.push_back({mode, current});
+            current = prevNode;
         }
-        path.push_back({ETransportationMode::Walk, src});
-        std::reverse(path.begin(), path.end());
-
+        reversePath.push_back({ETransportationMode::Walk, src}); // Starting point
+        
+        // Reverse the path to get source to destination
+        for (auto it = reversePath.rbegin(); it != reversePath.rend(); ++it) {
+            path.push_back(*it);
+        }
+        
         return times[dest];
     }
 
     bool GetPathDescription(const std::vector<TTripStep> &path, std::vector<std::string> &desc) const {
+        desc.clear();
         for (const auto& step : path) {
             std::string mode;
             switch (step.first) {
@@ -221,7 +251,6 @@ CDijkstraTransportationPlanner::CDijkstraTransportationPlanner(std::shared_ptr<S
 
 // Destructor
 CDijkstraTransportationPlanner::~CDijkstraTransportationPlanner() {
-
 }
 
 // Returns the number of nodes in the street map

@@ -375,4 +375,6 @@ struct CDijkstraTransportationPlanner::SImplementation{
     }
 };
 
-CDijkstraTransportationPlanner::CDijkstraTransportationPlanner(std::shared_ptr<SConfiguration>
+CDijkstraTransportationPlanner::CDijkstraTransportationPlanner(std::shared_ptr<SConfiguration> config)
+    : DImplementation(std::make_unique<SImplementation>(config)) {
+}

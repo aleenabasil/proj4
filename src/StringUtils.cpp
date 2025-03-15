@@ -6,18 +6,25 @@
 
 namespace StringUtils{
 
+//Returns a substring from start to end indices (slicing)
 std::string Slice(const std::string &str, ssize_t start, ssize_t end) noexcept{
-    
-   if(end == 0) end = str.size();
-   if(start < 0) start += str.size();
-   if(end < 0) end += str.size();
+   if(end == 0) {
+    end = str.size();
+    }
+   if(start < 0) {
+    start += str.size();
+    }
+   if(end < 0) {
+    end += str.size();
+   }
    return str.substr(start, end - start);
 }
-
+//Capitalize first letter and make the rest lowercase
 std::string Capitalize(const std::string &str) noexcept{
     //if string is empty return
-    if(str.empty()) return "";
-
+    if(str.empty()){
+         return "";
+    }
     std::string cap = str;
     //cap the first letter
     cap[0] = toupper(cap[0]);
@@ -29,8 +36,12 @@ std::string Capitalize(const std::string &str) noexcept{
 
 }
 
+//Makes everything to caps
 std::string Upper(const std::string &str) noexcept{
-    if(str.empty()) return "";
+    //if string is empty return
+    if(str.empty()) {
+        return ""; 
+    }
     std::string up = str;
     //convert all uppercase
     for(size_t i = 0; i < up.size(); i++){
@@ -39,8 +50,12 @@ std::string Upper(const std::string &str) noexcept{
     return up;
 }
 
+//make everything to lowercase
 std::string Lower(const std::string &str) noexcept{
-    if(str.empty()) return "";
+    //if string is empty return
+    if(str.empty()) {
+        return "";
+    }
     std::string low = str;
     //convert all lowercase
     for(size_t i = 0; i < low.size(); i++){
@@ -49,56 +64,70 @@ std::string Lower(const std::string &str) noexcept{
     return low;
 }
 
+//removes the whitespace before the string
 std::string LStrip(const std::string &str) noexcept{
     
     size_t start = 0;
     //skip spaces at start
-    while(start < str.size() && isspace(str[start])) start++;
+    while(start < str.size() && isspace(str[start])) {
+        start++; }
     //if string only spaces return
-    if(start == str.size()) return "";
+    if(start == str.size()) {
+        return "";}
     return str.substr(start);
 
 }
 
+//removes the whitespace after the string
 std::string RStrip(const std::string &str) noexcept{
     
     size_t end = str.size();
     //skip spaces at end
-    while(end > 0 && isspace(str[end-1])) end--;
+    while(end > 0 && isspace(str[end-1])) {
+         end--; }
     //if string only spaces return
-    if(end == 0) return "";
+    if(end == 0) {
+        return "";}
     return str.substr(0, end);
 }
 
+//removes whitespace on both sides
 std::string Strip(const std::string &str) noexcept{
     // strip spaces at both start and end
     return LStrip(RStrip(str));
 }
 
+//makes the string center within the given width
 std::string Center(const std::string &str, int width, char fill) noexcept{
     
     int num = width - str.size();
-    if(num <= 0) return str;
+    if(num <= 0) {
+        return str;}
     int left = num / 2;
     int right = num - left;
     //string on center
     return std::string(left, fill) + str + std::string(right, fill);
 }
 
+//aligns the string to the left
 std::string LJust(const std::string &str, int width, char fill) noexcept{
     int num = width - str.size();
-    if(num <= 0) return str;
+    if(num <= 0) {
+        return str;}
     //string on left
     return str + std::string(num, fill);
 }
 
+//aligns the string to the right
 std::string RJust(const std::string &str, int width, char fill) noexcept{
     int num = width - str.size();
-    if(num <= 0) return str;
+    if(num <= 0) {
+        return str;}
     //fill charaters on right
     return std::string(num, fill) + str;
 }
 
+//replace where all specific word with another word
 std::string Replace(const std::string &str, const std::string &old, const std::string &rep) noexcept{
     std::string rp = str;
     size_t pos = 0;
@@ -112,19 +141,23 @@ std::string Replace(const std::string &str, const std::string &old, const std::s
     return rp;
 }
 
+//splits the string
 std::vector< std::string > Split(const std::string &str, const std::string &splt) noexcept{
     std::vector<std::string> st;
-    if(str.empty()) return st;
+    if(str.empty()) {
+        return st;}
     size_t start = 0;
     size_t end;
     if(splt.empty()){
         while(start < str.size()){
-            while(start < str.size() && std::isspace(str[start])) start++;
-            if(start >= str.size()) break;
-
+            while(start < str.size() && std::isspace(str[start])) {
+                start++;}
+            if(start >= str.size()) {
+                break;}
             end = start;
             //find the end of the word
-            while(end < str.size() && !std::isspace(str[end])) end++;
+            while(end < str.size() && !std::isspace(str[end])) {
+                end++;}
             //remove then add to the new vector
             st.push_back(str.substr(start, end - start));
             start = end;
@@ -141,9 +174,11 @@ std::vector< std::string > Split(const std::string &str, const std::string &splt
     return st;
 }
 
+//jois the elements into one string
 std::string Join(const std::string &str, const std::vector< std::string > &vect) noexcept{
     std::string jn;
-    if(vect.empty()) return "";
+    if(vect.empty()) {
+        return "";}
     for (size_t i = 0; i < vect.size(); i++){
         //append each element in the vector
         jn += vect[i];
@@ -151,12 +186,13 @@ std::string Join(const std::string &str, const std::vector< std::string > &vect)
     }
     return jn;
 }
-
+//replace tab characters with spaces
 std::string ExpandTabs(const std::string &str, int tabsize) noexcept{
     std::string et;
     if(tabsize == 0){
         for(char c : str){
-            if(c != '\t') et += c;
+            if(c != '\t') {
+                et += c;}
         }
         return et;
     }
@@ -177,6 +213,7 @@ std::string ExpandTabs(const std::string &str, int tabsize) noexcept{
     return et;
 }
 
+//computes the edit distance (levenshtein distance) between two strings
 int EditDistance(const std::string &left, const std::string &right, bool ignorecase) noexcept{
     std::string l = left;
     std::string r = right;

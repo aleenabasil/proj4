@@ -12,7 +12,7 @@ GTEST_INC = $(GTEST_DIR)/include
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -g -I$(INCLUDE_DIR) -I/opt/homebrew/include
+CXXFLAGS = -std=c++17 -Wall -g -I$(INCLUDE_DIR) -I/opt/homebrew/include 
 # Changed order of flags - gtest_main must come before gtest
 LDFLAGS = -L$(GTEST_LIB) -lgtest_main -lgtest -lgmock -lgmock_main -pthread -lexpat  
 
@@ -67,17 +67,6 @@ $(BIN_DIR)/testtp: $(OBJ_DIR)/DijkstraTransportationPlanner.o $(OBJ_DIR)/CSVOSMT
 
 $(BIN_DIR)/testcl: $(OBJ_DIR)/TransportationPlannerCommandLine.o $(OBJ_DIR)/TPCommandLineTest.o $(OBJ_DIR)/StringDataSource.o $(OBJ_DIR)/StringDataSink.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
-
-# Run tests in the specified order
-runtests: $(TEST_TARGETS)
-	@for exe in $(TEST_TARGETS); do \
-		echo "Running $$exe..."; \
-		./$$exe; \
-		if [ $$? -ne 0 ]; then \
-			echo "Test $$exe failed!"; \
-			exit 1; \
-		fi; \
-	done
 
 # Clean up the build directories
 clean:

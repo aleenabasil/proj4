@@ -47,7 +47,8 @@ struct CBusSystemIndexer::SImplementation{
                 //the stop
                 auto stop = BusSystem->StopByIndex(i);
                 //if there is a stop add it to the list of ids
-                if (stop) StopID.push_back(stop->ID());
+                if (stop) {
+                    StopID.push_back(stop->ID());}
             }
             //sort all the stop IDs
             std::sort(StopID.begin(), StopID.end());
@@ -100,43 +101,44 @@ struct CBusSystemIndexer::SImplementation{
         return nullptr;
     }
 
+    //checks if there is a route hetween the start and destinations
     bool RoutesByNodeIDs(TNodeID src, TNodeID dest,
-        std::unordered_set<std::shared_ptr<SRoute> > &routes) const{
-        //getting the start and end node
+        std::unordered_set<std::shared_ptr<SRoute> > &routes) const {
+        // Getting the start and end node
         auto start = StopByNodeID(src);
         auto end = StopByNodeID(dest);
         
-        //checking if it exists
-        if(!start || !end) return false;
+        // Checking if it exists
+        if (!start || !end) return false;
         
-        //getting the ID of both nodes
+        // Getting the ID of both nodes
         CBusSystem::TStopID startID = start->ID();
         CBusSystem::TStopID endID = end->ID();
-
-        for(size_t i = 0; i < BusSystem->RouteCount(); i++){
-            auto route = BusSystem->RouteByIndex(i);
-            //if it doesnt exist go to the next route
+    
+        for (size_t routeIndex = 0, allroutes = BusSystem->RouteCount(); 
+            routeIndex < allroutes; ++routeIndex) {
+            auto route = BusSystem->RouteByIndex(routeIndex);
             if (!route) continue;
-            
-            bool found = false;
-            
-            for (std::size_t j = 0; j < route->StopCount(); j++) {
-                CBusSystem::TStopID stop = route->GetStopID(j); 
-                //checking if the stop has the start ID
-                if (stop == startID) {
-                    found = true;
+    
+            //if starrt stop is found
+            CBusSystem::TStopID first = 0;  
+    
+            for (size_t stopIndex = 0, allstops = route->StopCount(); 
+                stopIndex < allstops; ++stopIndex) {
+                CBusSystem::TStopID currentStopID = route->GetStopID(stopIndex);
+                //if we foudn the start stop
+                if (currentStopID == startID) {
+                    first = startID; 
                 }
-                
-                // If we found both stops, add the route to the set
-                if (found && stop == endID) {
+                //check for end
+                if (first && currentStopID == endID) {  
                     routes.insert(route);
                     break;
                 }
             }
         }
         
-        if(!routes.empty()) return true;
-        return false;
+        return !routes.empty();
     }
     
     //check if route exists between two node IDS

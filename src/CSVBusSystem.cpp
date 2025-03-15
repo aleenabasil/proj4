@@ -41,7 +41,7 @@ CCSVBusSystem::CCSVBusSystem(std::shared_ptr< CDSVReader > stopsrc, std::shared_
                     DImplementation->Stops[stop->StopID] = stop; 
                     DImplementation->SList.push_back(stop);  
 
-                // Handle any exceptions that occur
+                // Handle any exceptions that occur CANNOT REMOVE
                 } catch (const std::exception& e) {
                     std::cerr << "Exception caught: " << e.what() << "\n";
                 }
@@ -71,7 +71,7 @@ CCSVBusSystem::CCSVBusSystem(std::shared_ptr< CDSVReader > stopsrc, std::shared_
                     // Add the stop ID to the route's list of stops
                     route->RouteStops.push_back(stopID);  
 
-                // Handle any exceptions that occur
+                // Handle any exceptions that occur CANNOT REMOVE
                 } catch (const std::exception& e) { 
                     std::cerr << "Exception caught: " << e.what() << "\n";
                 }
@@ -109,15 +109,10 @@ std::size_t CCSVBusSystem::RouteCount() const noexcept {
 // Returns the SStop specified by the index, nullptr is returned if index is
 // greater than equal to StopCount()
 std::shared_ptr<CBusSystem::SStop> CCSVBusSystem::StopByIndex(std::size_t index) const noexcept {
-    // Check if the index is within bounds
-    if (index < DImplementation->SList.size()) {
-         // Retrieve the stop at the given index
-        auto stop = DImplementation->SList[index];
-        // Print debug information about the stop
-        return stop;
-    }
+
+    // return the stop at the given index if not
     // Return nullptr if index is out of bounds
-    return nullptr;
+    return (index < DImplementation->SList.size()) ? DImplementation->SList[index] : nullptr;
 }
 
 
@@ -125,26 +120,20 @@ std::shared_ptr<CBusSystem::SStop> CCSVBusSystem::StopByIndex(std::size_t index)
 // not in the stops
 std::shared_ptr<CBusSystem::SStop> CCSVBusSystem::StopByID(TStopID id) const noexcept {
     // Search for the stop in the map
-    auto it = DImplementation->Stops.find(id);
-    if (it != DImplementation->Stops.end()) {
-        return it->second;
-    }
-     // Return nullptr if the stop ID is not found
-    return nullptr;
+    auto stop = DImplementation->Stops.find(id);
+    //returns speccifc stop if not
+    //Return nullptr if the stop ID is not found
+    return (stop != DImplementation->Stops.end()) ? stop->second : nullptr;
 }
 
 
 // Returns the SRoute specified by the index, nullptr is returned if index is
 // greater than equal to RouteCount()
 std::shared_ptr<CBusSystem::SRoute> CCSVBusSystem::RouteByIndex(std::size_t index) const noexcept {
-    // Check if the index is within bounds
-    if (index < DImplementation->RList.size()) {
-        // Retrieve the route at the given index
-        auto route = DImplementation->RList[index];
-        return route;
-    }
+    
+    // return the route at the given index if not
     // Return nullptr if index is out of bounds
-    return nullptr;
+    return (index < DImplementation->RList.size()) ? DImplementation->RList[index] : nullptr;
 }
 
 
@@ -152,12 +141,9 @@ std::shared_ptr<CBusSystem::SRoute> CCSVBusSystem::RouteByIndex(std::size_t inde
 // not in the routes
 std::shared_ptr<CBusSystem::SRoute> CCSVBusSystem::RouteByName(const std::string &name) const noexcept {
      // Search for the route by name
-    auto it = DImplementation->Routes.find(name);
-    // If the route is found
-    if (it != DImplementation->Routes.end()) {
-        // Return the corresponding route object
-        return it->second;
-    }
+    auto route = DImplementation->Routes.find(name);
+
+    // Return the corresponding route object if not
     // Return nullptr if the route name is not found
-    return nullptr;
+    return (route != DImplementation->Routes.end()) ? route->second : nullptr;
 }

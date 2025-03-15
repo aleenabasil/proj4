@@ -1,111 +1,125 @@
 #include "XMLWriter.h"
-#include <stack>
+#include <vector>
 #include <string>
 
-// internal implementation of the CXMLWriter using a stack to manage open XML elements
+// internal structure to handle XML writing
 struct CXMLWriter::SImplementation {
-    std::shared_ptr<CDataSink> Sink;  // destination for XML output
-    std::stack<std::string> Stack;    // stack to manage the tags for proper nesting and closure
+    std::shared_ptr<CDataSink> OutputSink;  // Output stream for XML data
+    std::vector<std::string> OpenElements;  // Stack to track open elements
 
-    // constructor that takes a data sink
+    // constructor initializes the output sink
     explicit SImplementation(std::shared_ptr<CDataSink> sink) 
-        : Sink(std::move(sink)) {}
+        : OutputSink(std::move(sink)) {}
 
-    // writes a string to the output possibly escaping XML special characters
-    bool WriteText(const std::string &str, bool escape) {
-        for (char c : str) {
-            if (escape) {
-                // escaping XML special characters to prevent malformation
-                switch (c) {
-                    case '<':  if (!WriteText("&lt;", false)) return false; break;
-                    case '>':  if (!WriteText("&gt;", false)) return false; break;
-                    case '&':  if (!WriteText("&amp;", false)) return false; break;
-                    case '\'': if (!WriteText("&apos;", false)) return false; break;
-                    case '"':  if (!WriteText("&quot;", false)) return false; break;
-                    default:   if (!Sink->Put(c)) return false;
-                }
-            } else {
-                if (!Sink->Put(c)) return false;
-            }
-        }
-        return true;
-    }
-
-    // closes all open xml elements ensuring proper xml structure before ending the document
-    bool Flush() {
-        while (!Stack.empty()) {
-            if (!WriteText("</" + Stack.top() + ">", false)) {
+    // helper function to write raw text to the output sink
+    bool Write(const std::string &text) {
+        for (char ch : text) {
+            if (!OutputSink->Put(ch)) {
                 return false;
             }
-            Stack.pop();
         }
         return true;
     }
 
-    // writes an xml entity based on its type (tag, data, or self-closing element)
-    bool WriteEntity(const SXMLEntity &entity) {
+    // writes text while escaping XML special characters
+    bool WriteEscapedText(const std::string &text) {
+        for (char ch : text) {
+            switch (ch) {
+                case '<':  if (!Write("&lt;")) return false; break;
+                case '>':  if (!Write("&gt;")) return false; break;
+                case '&':  if (!Write("&amp;")) return false; break;
+                case '\'': if (!Write("&apos;")) return false; break;
+                case '"':  if (!Write("&quot;")) return false; break;
+                default:
+                    if (!OutputSink->Put(ch)) return false;
+            }
+        }
+        return true;
+    }
+
+    // ensures all open XML elements are closed properly
+    bool CloseAllOpenElements() {
+        while (!OpenElements.empty()) {
+            if (!Write("</") ||
+                !Write(OpenElements.back()) ||
+                !Write(">")) {
+                return false;
+            }
+            OpenElements.pop_back();
+        }
+        return true;
+    }
+
+    // writes an XML entity based on its type (tag, text, or self-closing tag)
+    bool WriteXMLComponent(const SXMLEntity &entity) {
         switch (entity.DType) {
-            // handle opening tags
             case SXMLEntity::EType::StartElement:
-                if (!WriteText("<" + entity.DNameData, false)) return false;
-
-                // write attributes if any
-                for (const auto &attr : entity.DAttributes) {
-                    if (!WriteText(" " + attr.first + "=\"", false)) return false;
-                    if (!WriteText(attr.second, true)) return false;  
-                    if (!WriteText("\"", false)) return false;
+                if (!Write("<") ||
+                    !Write(entity.DNameData)) {
+                    return false;
                 }
-
-                if (!WriteText(">", false)) return false;
-                Stack.push(entity.DNameData);  // remember this tag to close it later
+                for (const auto &attr : entity.DAttributes) {
+                    if (!Write(" ") ||
+                        !Write(attr.first) ||
+                        !Write("=\"") ||
+                        !WriteEscapedText(attr.second) ||
+                        !Write("\"")) {
+                        return false;
+                    }
+                }
+                if (!Write(">")) return false;
+                OpenElements.push_back(entity.DNameData);
                 break;
 
-            // handle closing tags
             case SXMLEntity::EType::EndElement:
-                if (!WriteText("</" + entity.DNameData + ">", false)) return false;
-                if (!Stack.empty()) {
-                    Stack.pop();
+                if (!Write("</") ||
+                    !Write(entity.DNameData) ||
+                    !Write(">")) {
+                    return false;
+                }
+                if (!OpenElements.empty()) {
+                    OpenElements.pop_back();
                 }
                 break;
 
-            // handle character data within tags
             case SXMLEntity::EType::CharData:
-                if (!WriteText(entity.DNameData, true)) return false;  
+                if (!WriteEscapedText(entity.DNameData)) return false;
                 break;
 
-            // handle self-closing tags
             case SXMLEntity::EType::CompleteElement:
-                if (!WriteText("<" + entity.DNameData, false)) return false;
-
-                for (const auto &attr : entity.DAttributes) {
-                    if (!WriteText(" " + attr.first + "=\"", false)) return false;
-                    if (!WriteText(attr.second, true)) return false;  
-                    if (!WriteText("\"", false)) return false;
+                if (!Write("<") ||
+                    !Write(entity.DNameData)) {
+                    return false;
                 }
-
-                if (!WriteText("/>", false)) return false;
+                for (const auto &attr : entity.DAttributes) {
+                    if (!Write(" ") ||
+                        !Write(attr.first) ||
+                        !Write("=\"") ||
+                        !WriteEscapedText(attr.second) ||
+                        !Write("\"")) {
+                        return false;
+                    }
+                }
+                if (!Write("/>")) return false;
                 break;
         }
         return true;
     }
 };
 
-// sets up the xml writer with a specified data destination
+// constructor for XML writer
 CXMLWriter::CXMLWriter(std::shared_ptr<CDataSink> sink)
     : DImplementation(std::make_unique<SImplementation>(std::move(sink))) {}
 
-// destructor ensures resources are cleaned up properly
+// destructor
 CXMLWriter::~CXMLWriter() = default;
 
-// flush method to make sure all opened tags are closed
+// ensures all remaining open elements are closed before finalizing output
 bool CXMLWriter::Flush() {
-    return DImplementation->Flush();
+    return DImplementation->CloseAllOpenElements();
 }
 
-// writes an xml entity to the output based on the provided description and attributes
+// writes an XML entity to the output
 bool CXMLWriter::WriteEntity(const SXMLEntity &entity) {
-    return DImplementation->WriteEntity(entity);
+    return DImplementation->WriteXMLComponent(entity);
 }
-
-
-
